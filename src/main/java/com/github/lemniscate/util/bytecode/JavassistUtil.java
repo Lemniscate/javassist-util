@@ -39,6 +39,11 @@ public class JavassistUtil {
     public static Class<?> generateTypedInterface(String name, Class<?> superInterface, Class<?>... typeArgs) throws NotFoundException, CannotCompileException {
         ClassPool pool = ClassPool.getDefault();
 
+        pool.appendClassPath( new ClassClassPath(superInterface));
+        for(Class<?> c : typeArgs){
+            pool.appendClassPath( new ClassClassPath(c));
+        }
+
         CtClass impl = pool.makeInterface( name );
         impl.setSuperclass( pool.get(superInterface.getName()) );
         impl.setGenericSignature( getGenericSignature(pool, superInterface, typeArgs));
