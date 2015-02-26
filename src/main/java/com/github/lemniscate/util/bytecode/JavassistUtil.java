@@ -25,17 +25,15 @@ public class JavassistUtil {
 
     public static String getGenericSignature(ClassPool pool, Class<?> baseImpl, Collection<Class<?>> interfaces, Class<?>... classes) throws NotFoundException {
         StringBuilder name = new StringBuilder( baseImpl.getSimpleName() );
-        String superclass = baseImpl.getName().replace(".", "/");
-        String genericSuperclass = baseImpl.getName().replace(".", "/");
-        StringBuilder sig = new StringBuilder("L" + superclass + ";L" + genericSuperclass + "<");
+        String baseImplSig = baseImpl.getName().replace(".", "/");
 
-        StringBuilder types = new StringBuilder();
-
+        // TODO find out why we have the root Object in there...
+        StringBuilder sig = new StringBuilder("Ljava/lang/Object;L" + baseImplSig + "<");
         for(int i = 0; i < classes.length; i++){
             Class<?> c = classes[i];
             pool.appendClassPath( new ClassClassPath(c));
             CtClass ct = pool.get( c.getName() );
-            types.append("L")
+            sig.append("L")
                     .append( ct.getName().replace('.', '/') )
                     .append(";");
 
@@ -43,20 +41,7 @@ public class JavassistUtil {
             name.append("_")
                     .append(c.getSimpleName());
         }
-
-        sig.append(types.toString()).append(">;");
-
-        for(Class<?> iface : interfaces){
-            // TODO how do we know the right params / order / etc
-            if( iface.isAssignableFrom(baseImpl) && iface.getTypeParameters().length == baseImpl.getTypeParameters().length){
-                String ifaceSig = iface.getName().replace(".", "/");
-                sig.append("L" + ifaceSig + "<")
-                        .append(types.toString())
-                        .append(">;");
-            }
-        }
-
-
+        sig.append(">;");
         return sig.toString();
     }
 
