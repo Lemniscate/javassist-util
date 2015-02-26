@@ -8,23 +8,34 @@ import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.ArrayMemberValue;
 import javassist.bytecode.annotation.MemberValue;
 import javassist.bytecode.annotation.StringMemberValue;
+import sun.reflect.generics.factory.CoreReflectionFactory;
+import sun.reflect.generics.repository.ClassRepository;
+import sun.reflect.generics.scope.ClassScope;
+
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.util.ArrayList;
+import java.util.Collection;
 
 /**
  * @Author dave 5/16/14 8:49 AM
  */
 public class JavassistUtil {
 
-    public static String getGenericSignature(ClassPool pool, Class<?> baseImpl, Class<?>... classes) throws NotFoundException {
+    public static String getGenericSignature(ClassPool pool, Class<?> baseImpl, Collection<Class<?>> interfaces, Class<?>... classes) throws NotFoundException {
         StringBuilder name = new StringBuilder( baseImpl.getSimpleName() );
-        String baseImplSig = baseImpl.getName().replace(".", "/");
+        String superclass = baseImpl.getName().replace(".", "/");
+        String genericSuperclass = baseImpl.getName().replace(".", "/");
+        StringBuilder sig = new StringBuilder("L" + superclass + ";L" + genericSuperclass + "<");
 
-        // TODO find out why we have the root Object in there...
-        StringBuilder sig = new StringBuilder("Ljava/lang/Object;L" + baseImplSig + "<");
+        StringBuilder types = new StringBuilder();
+
         for(int i = 0; i < classes.length; i++){
             Class<?> c = classes[i];
             pool.appendClassPath( new ClassClassPath(c));
             CtClass ct = pool.get( c.getName() );
-            sig.append("L")
+            types.append("L")
                     .append( ct.getName().replace('.', '/') )
                     .append(";");
 
@@ -32,27 +43,44 @@ public class JavassistUtil {
             name.append("_")
                     .append(c.getSimpleName());
         }
-        sig.append(">;");
+
+        sig.append(types.toString()).append(">;");
+
+        for(Class<?> iface : interfaces){
+            // TODO how do we know the right params / order / etc
+            if( iface.isAssignableFrom(baseImpl) && iface.getTypeParameters().length == baseImpl.getTypeParameters().length){
+                String ifaceSig = iface.getName().replace(".", "/");
+                sig.append("L" + ifaceSig + "<")
+                        .append(types.toString())
+                        .append(">;");
+            }
+        }
+
+
         return sig.toString();
     }
 
     public static Class<?> generateTypedInterface(String name, Class<?> superInterface, Class<?>... typeArgs) throws NotFoundException, CannotCompileException {
         ClassPool pool = ClassPool.getDefault();
 
-        pool.appendClassPath( new ClassClassPath(superInterface));
+        pool.insertClassPath( new ClassClassPath(superInterface));
         for(Class<?> c : typeArgs){
-            pool.appendClassPath( new ClassClassPath(c));
+            pool.insertClassPath( new ClassClassPath(c));
         }
 
         CtClass impl = pool.makeInterface( name );
         impl.setSuperclass( pool.get(superInterface.getName()) );
-        impl.setGenericSignature( getGenericSignature(pool, superInterface, typeArgs));
+        impl.setGenericSignature( getGenericSignature(pool, superInterface, new ArrayList<Class<?>>(), typeArgs));
 
         Class<?> result = impl.toClass();
         return result;
     }
 
     public static Class<?> generateTypedSubclass(String name, Class<?> baseImpl, Class<?>... classes) {
+        return generateTypedSubclass(name, baseImpl, new ArrayList<Class<?>>(), classes);
+    }
+
+    public static Class<?> generateTypedSubclass(String name, Class<?> baseImpl, Collection<Class<?>> interfaces, Class<?>... classes) {
         try{
             ClassPool pool = ClassPool.getDefault();
             pool.appendClassPath(new ClassClassPath(baseImpl));
@@ -62,8 +90,13 @@ public class JavassistUtil {
             CtClass impl = pool.makeClass( name.toString() );
             impl.setSuperclass(ctBaseImpl);
 
+            for( Class<?> iface : interfaces){
+                impl.addInterface(pool.get(iface.getName()));
+            }
+
+
             // apply our generic signature
-            impl.setGenericSignature( getGenericSignature(pool, baseImpl, classes) );
+            impl.setGenericSignature( getGenericSignature(pool, baseImpl, interfaces, classes) );
 
 
             CtConstructor[] constructors = ctBaseImpl.getConstructors();
@@ -78,10 +111,14 @@ public class JavassistUtil {
                 }
             }
 
-
+            CtMethod m = CtNewMethod.make(
+                    "public java.lang.reflect.TypeVariable[] getTypeParameters() { throw new RuntimeException(); }",
+                    impl);
+            impl.addMethod(m);
 
 
             Class<?> result = impl.toClass();
+
             return result;
         }catch(Exception e){
             throw new RuntimeException("Failed to create subclass: " + e.getMessage(), e);

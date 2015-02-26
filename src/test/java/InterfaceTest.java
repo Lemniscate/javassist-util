@@ -1,11 +1,11 @@
 import com.github.lemniscate.util.bytecode.JavassistUtil;
-
-import static junit.framework.Assert.*;
 import org.junit.Test;
 import org.springframework.core.GenericTypeResolver;
 
-public class InterfaceTest {
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
 
+public class InterfaceTest {
     @Test
     public void makeTypedInterface() throws Exception{
 //        ClassPool pool = ClassPool.getDefault();
@@ -27,3 +27,4 @@ public class InterfaceTest {
         T get();
     }
 }
+
